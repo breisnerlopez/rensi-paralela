@@ -1,0 +1,41 @@
+########## N=1 ##########
+tiempos: cold=3s  base_setup=10s  warm_workers=7s  latencia_base->warm=0s
+########## N=2 ##########
+tiempos: cold=4s  base_setup=5s  warm_workers=9s  latencia_base->warm=0s
+########## N=4 ##########
+tiempos: cold=5s  base_setup=19s  warm_workers=5s  latencia_base->warm=0s
+
+==========================================================================================
+ANALISIS (costo ponderado = input + 1.25*creation + 0.1*read + output)
+==========================================================================================
+
+--- N=1 ---
+  COLD workers read/creation/in/out: [23702/15517/2/11]
+  WARM base    read/creation/in/out: [23702/15062/2/578]
+  WARM workers read/creation/in/out: [23702/16160/2/11]
+  >> warm worker#1 read=23702 creation=16160  (¿hereda la base?)
+  COSTO COLD (N=1) = 21,779   COSTO WARM (N=1, +base) = 44,361   delta(cold-warm) = -22,581  (COLD gana)
+
+--- N=2 ---
+  COLD workers read/creation/in/out: [23702/15517/2/11]; [23702/15516/2/64]
+  WARM base    read/creation/in/out: [29269/9677/2/6]
+  WARM workers read/creation/in/out: [23702/15572/2/11]; [23702/15571/2/10]
+  >> cold worker#2 read=23702 creation=15516  (¿el contexto pega cache entre workers cold worktree-aislados?)
+  >> warm worker#1 read=23702 creation=15572  (¿hereda la base?)
+  COSTO COLD (N=2) = 43,611   COSTO WARM (N=2, +base) = 58,725   delta(cold-warm) = -15,115  (COLD gana)
+
+--- N=4 ---
+  COLD workers read/creation/in/out: [23702/15517/2/11]; [23702/15516/2/135]; [23702/15516/2/11]; [23702/15517/2/13]
+  WARM base    read/creation/in/out: [38764/0/2/1217]
+  WARM workers read/creation/in/out: [23702/16799/2/41]; [23702/16798/2/10]; [23702/16798/2/11]; [23702/16799/2/13]
+  >> cold worker#2 read=23702 creation=15516  (¿el contexto pega cache entre workers cold worktree-aislados?)
+  >> warm worker#1 read=23702 creation=16799  (¿hereda la base?)
+  COSTO COLD (N=4) = 87,241   COSTO WARM (N=4, +base) = 98,652   delta(cold-warm) = -11,410  (COLD gana)
+
+--- BREAK-EVEN ---
+  warm gana a partir de N = NUNCA en {1,2,4}
+  sanity (una respuesta cold y una warm): cold=BillingService | bill | si | warm=BillingService | bill | si
+=== estado final ===
+<repo-host>  ae2bfd3 [master]
+ M <doc-del-repo-host>
+?? laboratorio/

@@ -1,0 +1,11 @@
+All three module implementations are complete, each in its own isolated worktree:
+
+| Módulo | Worktree |
+|---|---|
+| mod-billing | `.claude/worktrees/agent-a6a619766f41f6837` |
+| mod-user | `.claude/worktrees/agent-aea1d6dab2cf62b22` |
+| mod-order | `.claude/worktrees/agent-ae0da945c4d8eefc7` |
+
+Each worker wrote `packages/mod-<x>/index.ts` following the convention (`Core.validate`, `Core.fail("INVALID", ...)`, `Core.id` with the correct domain prefix — `bill`/`usr`/`ord`, `Core.log`, self-registration), with no commits made.
+
+Nothing was integrated into the main branch — let me know if you want the three files merged into your working tree (or a single branch) next.

@@ -1,0 +1,16 @@
+import { mkRgx, bail } from "../_core";
+
+export async function create_gateway(input: unknown) {
+  if (typeof input !== "object" || input === null) {
+    bail("INVALID");
+  }
+
+  const data = input as Record<string, unknown>;
+  if (!("name" in data) || typeof data.name !== "string" || data.name.length === 0) {
+    bail("INVALID");
+  }
+
+  const id = mkRgx("gw4");
+
+  return { ok: true as const, value: { id, name: (data as any).name } };
+}
