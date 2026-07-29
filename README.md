@@ -34,6 +34,28 @@ honestidad, incluidas las conclusiones intermedias que la propia medición **ref
 (medido). Las mejoras de la hoja de ruta (`paralela+`) apuntan a **precisión y auditabilidad**, no a un
 truco de tokens que la evidencia no respalda.
 
+## Prerequisites
+
+`rensi-paralela` define **contratos** (buzón, protocolo de worker, guardarraíles, gate); el **runtime**
+que los ejecuta es dependencia de entorno y **no está incluido** en el repo. Para correr `/paralela` de
+verdad necesitas:
+
+1. **`claude` CLI (Claude Code)** instalado y con acceso a la API/red (cuenta o key válida). Los skills
+   viven en [`skills/`](skills/) y se instalan en la ubicación estándar de Claude Code (`~/.claude/skills/`).
+2. **Un launcher de sesiones en worktrees** que, dado un `<id>`, cree un git worktree con su rama, arranque
+   ahí un worker `claude` con los permisos apropiados (típicamente `--dangerously-skip-permissions`, solo
+   sobre **repos confiables**) y reenvíe flags por-lanzamiento (`--settings`, `--append-system-prompt`,
+   `--model`). Es **bring-your-own**: el repo especifica el **contrato** que debe cumplir (la skill lo invoca
+   como "el launcher"); el binario concreto **no se incluye**.
+3. **Un mecanismo de gate adversarial** para el paso CERRAR: un skill `revisar` (o equivalente) que corra un
+   **retador** y, en alto riesgo, un **auditor** como subagentes read-only. Sin él, la integración pierde su
+   verificación independiente.
+
+> **Caveat de reproducibilidad.** El [`laboratorio/`](laboratorio/) documenta mediciones que **requieren ese
+> entorno vivo** (CLI + acceso a API + skip-permissions + el launcher + el gate). Los scripts son la receta,
+> pero **no son reproducibles sin ese runtime**. El repo sintético (`laboratorio/repo-sintetico/`) y los
+> scripts de spike/umbral ilustran el método; reproducir los números exige montar el entorno de arriba.
+
 ## Estructura
 - [`docs/INVESTIGACION.md`](docs/INVESTIGACION.md) — la investigación completa, con evidencia y las
   reversiones honestas donde un solo experimento engañó y las repeticiones corrigieron.

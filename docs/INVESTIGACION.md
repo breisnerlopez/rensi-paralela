@@ -67,6 +67,12 @@ fiable:
 - **Volcar un contexto grande EMPEORA la precisión** (entierra lo clave; el worker que explora encuentra
   justo lo que necesita).
 
+> **Nota de reproducibilidad.** La evidencia cruda de ese "monorepo real" (los transcripts y su `usage`) es
+> **confidencial y NO se incluye** en este repo — queda fuera del alcance público. Lo reproducible aquí es el
+> **laboratorio sintético** presente ([`laboratorio/`](../laboratorio/): spike y umbral sobre `repo-sintetico/`):
+> ilustra el método y el fenómeno (el "56% de ahorro" de un solo run vs. la señal que emerge con reps), no
+> los números concretos del monorepo real.
+
 → La única palanca de tokens realmente robusta es **reducir el trabajo** (tareas acotadas), no la entrega
 de contexto. Y "agentes finos que exploran en fresco" es una estrategia razonable, no un antipatrón.
 

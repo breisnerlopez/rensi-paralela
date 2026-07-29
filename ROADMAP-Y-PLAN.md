@@ -13,7 +13,8 @@ observable → **el modelo de paralela es correcto.** Las mejoras vienen de **pr
 NO de un truco de tokens.
 
 ## 1. Reencuadre tras el gate: ¿de qué es la ganancia, honestamente?
-El retador demolió la justificación de tokens: **paralela YA pre-empaqueta contexto** (`SKILL.md:148-150`),
+El retador demolió la justificación de tokens: **paralela YA pre-empaqueta contexto** (ver la sección
+"Eficiencia de tokens" en `skills/paralela/SKILL.md`, ya incluido en este repo),
 así que ya está del lado bueno del 7% cold-prepack-vs-explore. El delta que F1 puede reclamar es
 **prepack-estructurado (PRP) vs prepack-adhoc**, que nadie midió y que la evidencia ("el formato no mejora
 al LLM", empate 3.0 vs 2.75) sugiere **≈0 en tokens**. Por lo tanto:
@@ -68,12 +69,18 @@ poco al wall-clock total; se hace igual porque es gratis (sin solapamiento), sin
   - WS-A: `prp/{prp-template.md, scout-prompt.md, prp_lint.sh}` (+ penalización de tamaño).
   - WS-B: `validation/{acceptance-contract.md, accept_run.sh}` (+ fallback no-acceptance).
   - WS-C: `handoff/{handoff_complete.sh (lint/warn), done-schema.md}` (reusa skill `context-package`).
-- **Fase 2 (serial):** tejer en `SKILL.md` + `worker-protocol` (un editor). **Antes de tocar los archivos
+- **Fase 2 (serial):** tejer las 3 piezas en el **sustrato ya incluido en este repo** —
+  `skills/paralela/SKILL.md` y `skills/worker-protocol/SKILL.md` (un editor). **Antes de tocar los archivos
   reales de la skill: auditor** (privilegiada/security).
 
 ## 5. Plan de pruebas (C5 — método honesto)
 **El E2E mide PRIMARIO = precisión + no-regresión del espíritu. Tokens = solo banda, SIN conclusión**
 (medido: 3 reps no pueden distinguir ~7% del ruido CV≈2×; forzarlo sería teatro).
+
+> **Dependencia de runtime.** El **E2E (§5.2)** y los **DoD #4 y #6** ejercitan `/paralela` de punta a punta
+> → requieren el **entorno de runtime** descrito en la sección **Prerequisites** del README (launcher de
+> worktrees + `claude` CLI con acceso a API + skip-permissions + gate retador/auditor). Las **unit (§5.1)**
+> son **autocontenidas**: ejercitan los 3 scripts con bash + grep + python3 stdlib, sin ese runtime.
 
 ### 5.1 Unit por workstream (paralelo, baratas)
 - A: `prp_lint` rechaza PRP sin acceptance / sin contexto declarado / **gigante**; acepta LEAN válido.

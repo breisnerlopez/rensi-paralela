@@ -35,7 +35,10 @@ paralela-plus/
 ## WS-C — Completitud del handoff (LINT/WARN, NO gate)
 - `handoff/done-schema.md` — el `done.json`/handoff reusa el schema de handoff estructurado
   `context-package` (secciones Resumen, Decisiones, Hallazgos, Riesgos, Pendientes,
-  Para-el-siguiente-agente, Referencias) + campos rama/summary/gate_veredicto del done.json actual.
+  Para-el-siguiente-agente, Referencias) — **schema y validador ya incluidos en el repo**:
+  `skills/context-package/TEMPLATE.md` + `skills/context-package/validate.sh` — más los campos
+  rama/summary/gate_veredicto del **contrato de `done.json` definido en `skills/worker-protocol/SKILL.md`**
+  (paso "Cierre"), también ya incluido en el repo.
 - `handoff/handoff_complete.sh <archivo>` — **REPORTA** (warn) secciones faltantes; **exit SIEMPRE 0**
   (es lint/warn, NO bloquea — decisión del gate PLAN). Imprime `WARN: falta X Y` o `OK: completo`.
 - Entrega también: `handoff/done-ejemplo.md` (completo) para el test.
