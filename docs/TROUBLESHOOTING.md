@@ -15,17 +15,22 @@ guardarraíles H1–H5 ver [`REFERENCIA.md`](REFERENCIA.md).
 **Síntoma:** el orquestador aprueba la partición pero no arranca ningún worker; error tipo
 `command not found` sobre `<launcher>`, o no aparece ninguna sesión en `tmux ls`.
 
-**Causa:** el **launcher de sesiones en worktrees es bring-your-own**: el binario concreto **no** se
-incluye en este repo (es un contrato, ver README → Prerequisites y
-[`GUIA-USUARIO.md`](GUIA-USUARIO.md) §3). Sin él, `/paralela` no tiene con qué crear los worktrees ni
-arrancar los workers.
+**Causa:** no hay ningún launcher instalado ni resoluble. El repo **incluye un launcher de referencia**
+([`../launcher/claudea`](../launcher/claudea)) que `install.sh` instala en `~/.local/bin/claudea` **solo
+si no hay ninguno** (respeta un `claudea` en el PATH, un `$PARALELA_LAUNCHER` o el archivo destino ya
+existente). Si corriste `install.sh` con `--no-launcher`, o `~/.local/bin` no está en tu PATH, o tu
+launcher previo no cumple el contrato, `/paralela` no tiene con qué crear los worktrees ni arrancar los
+workers.
 
-**Solución:** provee un launcher que cumpla el contrato: dado `-w <id>`, crea worktree + rama, arranca
-un worker `claude` con permisos y **reenvía** los flags por lanzamiento (`--settings`,
-`--append-system-prompt`, `--model`). Verifica que el `<id>` sea válido (`[a-z0-9_-]`, empieza por
-alfanumérico — un id que empieza con `-` el launcher lo tomaría como flag). Mientras no lo tengas,
-`/paralela` no puede lanzar workers de verdad; el resto (partición, PRP, gate) sí razona, pero sin
-ejecución real.
+**Solución:** deja que `install.sh` instale la referencia (sin `--no-launcher`; usa `--launcher-dest
+<ruta>` si quieres otro destino) y asegúrate de que el destino esté en tu PATH. Si prefieres tu propio
+launcher, adáptalo (o adapta `launcher/claudea`, que es genérico y puede necesitar ajustes de entorno) y
+apúntalo con `$PARALELA_LAUNCHER`. En cualquier caso debe cumplir el contrato: dado `-w <id>`, crea
+worktree + rama, arranca un worker `claude` con permisos y **reenvía** los flags por lanzamiento
+(`--settings`, `--append-system-prompt`, `--model`). Verifica que el `<id>` sea válido (`[a-z0-9_-]`,
+empieza por alfanumérico — un id que empieza con `-` el launcher lo tomaría como flag). Sin un launcher
+resoluble, `/paralela` no puede lanzar workers de verdad; el resto (partición, PRP, gate) sí razona, pero
+sin ejecución real.
 
 ---
 
@@ -157,14 +162,18 @@ quejándose de un lock, confirma con `pgrep -f "worktrees/<id>"` que ya no queda
 **Síntoma:** al integrar, el orquestador no puede correr el gate CERRAR; no encuentra `revisar` (ni el
 retador/auditor).
 
-**Causa:** el skill **`revisar`** (o un equivalente que exponga retador + auditor read-only) es un
-**prerequisite bring-your-own** (README → Prerequisites). No viene empaquetado con este repo.
+**Causa:** el gate **viene bundleado** y lo instala `install.sh` (el skill `skills/revisar/`, los agentes
+`agents/{retador,auditor}.md` y las 12 lentes de `review/lenses/` → tu `~/.claude/`). Que falte suele
+significar que **no corriste `install.sh`**, que corrió con otro `--dest`, o que se movió/borró alguno de
+esos archivos de tu `~/.claude/`.
 
-**Solución:** instala un skill `revisar` que corra el gate adversarial por etapas
-(idea|plan|construir|cerrar). El gate CERRAR central es **innegociable** en la integración: sin él, el
-orquestador no tiene con qué hacer la revisión independiente del diff integrado. Mientras no lo tengas,
-`/paralela` puede lanzar y validar por acceptance, pero **no** cierra con la garantía de revisión que el
-diseño exige.
+**Solución:** corre (o vuelve a correr) `install.sh` — coloca `revisar` y sus dependencias
+automáticamente; ya no es bring-your-own. Verifica que existan `~/.claude/skills/revisar/SKILL.md`,
+`~/.claude/agents/{retador,auditor}.md` y `~/.claude/review/lenses/` (con `_base.md` + `dim/*` +
+`etapa/*`). Usa `--dry-run` para ver qué colocaría sin escribir. El gate CERRAR central es
+**innegociable** en la integración: sin él, el orquestador no tiene con qué hacer la revisión
+independiente del diff integrado. Con el gate instalado, `/paralela` cierra con la garantía de revisión
+que el diseño exige.
 
 ---
 

@@ -5,6 +5,26 @@ Todos los cambios notables de este proyecto se documentan en este archivo.
 El formato se basa en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/),
 y el proyecto adhiere a [Versionado Semántico](https://semver.org/lang/es/).
 
+## [Unreleased]
+
+### Añadido
+- **Gate CERRAR bundleado:** el skill `revisar`, los agentes `retador`/`auditor` y las
+  12 lentes (`review/lenses/`) ahora vienen en el repo y los instala `install.sh`
+  (`~/.claude/{skills,agents,review/lenses}`). Antes eran bring-your-own; el gate
+  adversarial funciona out-of-the-box.
+- **Launcher de referencia** (`launcher/claudea` + `launcher/README.md`): implementación
+  genérica y **saneada** (sin usuario/sudo/bootstrap hardcodeados) del contrato
+  `<launcher> -w <id>`. `install.sh` lo instala en `~/.local/bin/claudea` **solo si no
+  existe ya un launcher** (claudea en PATH, `$PARALELA_LAUNCHER`, o el archivo destino);
+  si ya hay uno, lo **respeta** (nunca sobreescribe). Flags: `--no-launcher`,
+  `--launcher-dest <ruta>`.
+
+### Cambiado
+- `install.sh`: instala también gate (skills/agentes/lentes) y launcher; `--dest` deriva
+  la raíz de config para agentes y lentes.
+- Docs (README, guía, arquitectura, troubleshooting) reencuadran gate y launcher como
+  **incluidos** (ya no bring-your-own).
+
 ## [0.2.0] - 2026-07-30
 
 `paralela+`: iteración enfocada en **precisión y auditabilidad** (NO en tokens).
