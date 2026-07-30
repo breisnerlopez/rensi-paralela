@@ -91,8 +91,9 @@ toma como flag. Anteponer siempre un preámbulo.)*
 - **Pre-empaquetar contexto ANTES de la tarea** es el espacio grande y validado: **spec-driven** (spec-kit
   124k★, OpenSpec 63k★, BMAD 51k★) y **PRP** (product requirement prompts, ~14k★). Es lo más alineado con
   el único lever real (no re-explorar), aunque orientado a features nuevas.
-- **Orquestadores de worktrees públicos** (claude-squad, Crystal, Uzi, ccswarm) son **multiplexores de
-  aislamiento** — sin buzón ni gate ni integración automática. `rensi-paralela` ya está por delante ahí.
+- **Orquestadores de worktrees públicos** (claude-squad, Crystal, Uzi, ccswarm) eran, **a la fecha de
+  esta investigación (2026)**, **multiplexores de aislamiento** — sin buzón ni gate ni integración
+  automática. `rensi-paralela` ya está por delante ahí (proyectos vivos: pueden haber evolucionado).
 - **Frameworks de estado** (LangGraph, CrewAI, OpenAI Agents SDK) pasan estado tipado in-process, sin
   worktrees. Nadie combina worktrees-paralelo-observable + handoff estructurado + gate; ahí hay hueco.
 

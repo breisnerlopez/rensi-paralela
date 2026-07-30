@@ -26,6 +26,17 @@ un id que empieza con `-` lo tomaría el launcher como flag). Explora el repo (d
 Explore) para trazar las costuras. **Presenta la partición al usuario y ESPERA aprobación** (es un
 fork de definición: parar-y-preguntar).
 
+**F1 · PRP por subtarea (precisión).** Tras aprobar la partición, lanza **un scout** (subagente
+Explore, explora el repo **1×**) siguiendo `"$SKILL_DIR/scout-prompt.md"`: emite por subtarea un
+`PRP-<id>.md` **LEAN** (plantilla `"$SKILL_DIR/prp-template.md"`) con archivos/símbolos exactos,
+**contexto necesario declarado** (F4: solo lo que la subtarea usa) y **criterio de aceptación** (F2).
+Valida cada uno con `"$SKILL_DIR/prp_lint.sh" PRP-<id>.md` (exit≠0 = falta una sección obligatoria o
+es un **dump gigante** → arréglalo; medido: el dump baja precisión, por eso el linter penaliza tamaño).
+El PRP es el **sustituto estructurado** del pre-empaquetado ad-hoc (misma función, más consistencia y
+trazabilidad), **no un extra encima** — su ganancia fiable es **precisión**, no menos tokens.
+**Break-even del scout:** explora 1× y amortiza sobre N workers; si N es pequeño (≈1-2) o las subtareas
+no comparten contexto, **sáltalo** y pre-empaqueta ad-hoc como en §4 (el scout sería costo neto).
+
 ## 3. Prepara el buzón y los guardarraíles
 `SKILL_DIR` = el directorio donde está instalado este skill (los archivos `orch-lib.sh`,
 `worker-guard.py` y `diff-risk.sh` vienen con él; en Claude Code suele ser `~/.claude/skills/paralela/`).
@@ -56,9 +67,19 @@ worker `claude` con permisos apropiados, y reenvía los flags por-lanzamiento (`
   [<flag-de-proveedor> <workers-provider>] \   # OPCIONAL: solo si el usuario pidió workers en otro backend (ver abajo)
   --model sonnet \
   --settings "$ORCH/bin/guard-settings.json" \
-  --append-system-prompt "Eres un WORKER de /paralela. REGLAS DURAS: trabaja solo en tu worktree; NUNCA acciones externas (push/deploy/red/sudo/tocar ~/.ssh,~/.claude,.git/hooks); ante decisión genuina NO adivines, usa el protocolo ask. Un hook PreToolUse bloquea mecánicamente las acciones externas." \
-  "Invoca el skill worker-protocol y síguelo. Contexto: id=<id>; box=/ruta/abs/orch/<id>; rama=worktree-<id>; subtarea: <descripción precisa y acotada>."
+  --append-system-prompt "Eres un WORKER de /paralela. REGLAS DURAS: trabaja solo en tu worktree; NUNCA acciones externas (push/deploy/red/sudo/tocar ~/.ssh,~/.claude,.git/hooks); ante decisión genuina NO adivines, usa el protocolo ask. Un hook PreToolUse bloquea mecánicamente las acciones externas. SÉ DIRECTO: sin preámbulos ni recapitulaciones conversacionales (nadie las lee en vivo; el orquestador solo lee tus archivos del buzón) — pero mantén COMPLETOS status.json, ask, y el summary/veredicto de done.json, y no recortes tu razonamiento." \
+  "Invoca el skill worker-protocol y síguelo. Contexto: id=<id>; box=/ruta/abs/orch/<id>; rama=worktree-<id>; subtarea: <descripción precisa y acotada>. BLUEPRINT (F1) — respétalo (archivos/símbolos/contexto declarado/criterio de aceptación): <<pega aquí el contenido de PRP-<id>.md>>."
 ```
+- **F1 en el prompt:** si corriste el scout, **incrusta el `PRP-<id>.md`** en el prompt del worker (es
+  el pre-empaquetado estructurado; reemplaza al ad-hoc, no lo suma). Sin scout, pre-empaqueta ad-hoc
+  como describe la sección "Eficiencia de tokens".
+- **F2 · acceptance autoría-orquestador:** el `## Criterio de aceptación` del PRP lo **autoraste tú**
+  (scout), NO el worker. **Extrae ese acceptance a una ruta orquestador-EXCLUSIVA, FUERA del buzón del
+  worker** `$ORCH/<id>/` (que el worker escribe por protocolo). Usa `$ORCH/acceptance/<id>.sh` —
+  **nunca** `$ORCH/<id>/...`: si la copia "canónica" viviera en el buzón, el worker podría sobreescribirla
+  con un `echo PASS; exit 0` + payload y reabrir el bypass que F2 cierra. Esa copia exclusiva es la que
+  re-correrás en §6. El worker puede correr su copia del PRP como smoke-test, pero **la autoridad es tu
+  re-corrido de la copia que él no puede tocar**, no su palabra ni un archivo de su worktree/buzón.
 - **H4 `--settings`**: hook PreToolUse que **deniega** push/red/escalada/rutas sensibles — control mecánico
   (verificado: bloquea aun con skip-permissions y se mergea con otros hooks del entorno). Es defensa-en-profundidad (denylist), no jaula.
 - **H3 `--append-system-prompt`**: reglas duras a nivel system-prompt (refuerzo de saliencia; el control duro es H4).
@@ -100,6 +121,10 @@ esperando respuesta (hasta TTL, ~15 min) legítimamente no commitea. Con el dige
   - Las preguntas internas de retador/auditor NO re-disparan el gate (anti-recursión).
 - **`blocked.json`** (worker cerró por TTL) → cuando tengas la respuesta, reanúdalo (`claude --resume`)
   o ciérralo y reasigna.
+- **`done.json` presente — completitud del handoff (F3, LINT/WARN, NO gate):** el digest corre
+  `"$SKILL_DIR/handoff_complete.sh" <handoff>` y **surface el WARN** al monitorear (secciones/campos
+  faltantes para trazabilidad). **Nunca reabre ni rechaza** al worker por esto (exit siempre 0; un
+  `done.json` delgado ≠ trabajo delgado) — es señal para el humano que monitorea, no un bloqueo.
 - **worker muerto / `pane_dead`=1 / heartbeat vencido** → márcalo `failed`; la integración procede con
   los vivos y **reporta** cuáles fallaron.
 - **H5 — pregunta/permiso FUERA de protocolo** (el buzón NO lo captura): un worker puede preguntar en
@@ -123,8 +148,24 @@ reemplaza** tu revisión independiente. Cuando todos los vivos tengan `done.json
    git clone <repo> "$ORCH/integra" && cd "$ORCH/integra"
    mkdir -p "$ORCH/empty-hooks" && git config core.hooksPath "$ORCH/empty-hooks"
    ```
-2. `git fetch <repo> worktree-<id>:worktree-<id>` por worker vivo; crea rama integradora `<task-slug>`;
-   mergea en orden. Conflicto → subagente resuelve, tú juzgas; semántico/ambiguo → escala.
+2. `git fetch <repo> worktree-<id>:worktree-<id>` por worker vivo; crea rama integradora `<task-slug>`.
+   **Aún NO mergees** — primero valida cada rama (2b).
+2b. **Validación-autoridad (F2) — ANTES de mergear, la verdad es la validación, no el auto-reporte.**
+   Por cada rama viva, con la rama en un checkout/worktree, **re-materializa el acceptance FRESCO desde
+   TU copia del PRP** (la que tú retienes, no un archivo del worker) a la ruta orquestador-exclusiva
+   `$ORCH/acceptance/<id>.sh` — re-escríbela justo antes de correr, sobreescribiendo cualquier
+   manipulación. Luego re-corre: `"$SKILL_DIR/accept_run.sh" <checkout-de-worktree-<id>>
+   <$ORCH/acceptance/<id>.sh>`. **Nunca** apuntes a `$ORCH/<id>/...` (buzón escribible por el worker) ni
+   a un `acceptance.sh` del worktree. Si el PRP declaró `acceptance: no-acceptance`, pasa
+   `--no-acceptance` en su lugar (deriva la señal del PRP, no del worktree). Interpreta: `PASS` → la rama es candidata a merge; `FAIL`/exit 2 → **no la mergees**
+   hasta resolver (subagente arregla, tú juzgas; ambiguo → escala); `SKIP (no-acceptance)` → sin
+   smoke-test propio, su verificación recae en el CERRAR de contenido (paso 4). **Seguridad:** correr el
+   acceptance ejecuta el código del worktree bajo prueba (mismo sobre que el CERRAR corriendo la suite
+   del repo); la lógica de test es **tuya** (no del worker) y va bajo `timeout` — precondición repos
+   confiables, no es sandbox.
+2c. **Mergea solo las ramas `PASS`/`SKIP`** en orden sobre `<task-slug>`. Conflicto → subagente resuelve,
+   tú juzgas; semántico/ambiguo → escala. Esto es **smoke-test por-rama temprano** (atrapa el defecto
+   antes de integrar, barato); **no** sustituye el CERRAR integral del paso 4.
 3. **Elevador de riesgo por rama (mecánico, fail-closed):** por cada rama corre
    `"$SKILL_DIR/diff-risk.sh" <merge-base-CONFIABLE> worktree-<id>` (script incluido con este skill) — la base es la real de
    integración (`git merge-base <base> worktree-<id>`), **NUNCA** un valor provisto por el worker.
@@ -166,4 +207,5 @@ Direccionamiento útil (medido): sesión tmux del worker = `<repo>_worktree-<id>
 
 ---
 **Invariantes:** repos confiables · workers sin acciones externas · buzón siempre atómico ·
-integración por clon limpio · push manual · exploración con tools nativas · verificación por veredicto.
+integración por clon limpio · push manual · exploración con tools nativas · verificación por veredicto ·
+PRP LEAN (no dump, F1) · validación re-corrida por el orquestador (F2) · completitud del handoff = warn, no gate (F3).

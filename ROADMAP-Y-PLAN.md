@@ -123,5 +123,33 @@ Se ESPERA que tokens salga "sin diferencia medible" — eso NO es un fallo del p
 - Skill privilegiada → **auditor obligatorio** antes de tocar archivos reales.
 
 ## 8. Estado
-v0.2 — gate PLAN pasado con C1–C6 integradas. **Pendiente para construir:** aprobación del usuario +
-auditor sobre el diff real. Este doc es el artefacto versionable a revisar/probar.
+v0.2 — **IMPLEMENTADO** (Fase 1 + Fase 2 + E2E). Gate PLAN pasado (C1–C6); gate **CERRAR pasado**
+(retador + auditor **APROBADO**, tras 2 rondas que atraparon un colapso de la tesis F2 —el worker
+autoraba el test que lo aprobaba— y un bypass de seguridad en 2 capas —acceptance en worktree, luego en
+el buzón escribible—, corregidos con acceptance autoría-orquestador + ruta exclusiva + re-materialización
++ `timeout` + validar-antes-de-mergear). Artefactos: `skills/paralela/` (scripts + plantillas + `tests/`,
+fuente única tras colapsar el staging `paralela-plus/`) + tejido en los dos SKILL.md. E2E:
+`laboratorio/RESULTADOS-PARALELA-PLUS-E2E.md`.
+
+### DoD — estado verificado
+1. **F1 ✅** — `prp_lint` (unit A); E2E: paralela+ adhiere MÁS consistente (9/9 a 6/6, stdev 0) que
+   baseline justo (mean 5.56, 4/9 sub-6).
+2. **F2 ✅** — defecto plantado ATRAPADO por `accept_run` (unit B + discriminante determinista), no por el
+   worker; fallback `no-acceptance` documentado y probado.
+3. **F3 ✅** — `handoff_complete` reporta (warn), no bloquea (unit C); warn visible en §5.
+4. **E2E ✅ (con caveat honesto)** — corre punta-a-punta, workers cold/separados, master intacto, gate
+   CERRAR pasa. El path interactivo/observable (launcher `claudea` + buzón + guard + autonomía del worker)
+   se validó con un **smoke en vivo** (worktree+tmux, `status`→`done`, push bloqueado por el guard).
+   **Parcial:** no se corrió la orquestación paralela+ COMPLETA de N workers como una sola sesión viva
+   (meta-riesgo #7: no correr paralela sobre sí misma; y es pesado).
+5. **Tokens ✅** — banda sin conclusión (base 76-157K vs pp 110-215K/worker; solapan; §5.3). Scout
+   break-even estructural; costo del scout NO medido por separado (PRPs autorados directamente).
+6. **Auditor ✅** — pasó sobre el diff real de la skill (security/config), riesgo residual bajo.
+
+### Añadido fuera de v0.2 (pulido, no medido)
+- Regla anti-narración de workers (`worker-protocol` + `--append-system-prompt`), guardarraíleada; NO
+  vendida como ahorro de tokens (sin baseline). Ver memoria `worker-narration-rule-unmeasured`.
+
+### Pendiente (externo — requiere al usuario)
+Push/commit de la rama (nunca automático). E2E interactivo/observable en vivo si se quiere cerrar el
+caveat de #4.

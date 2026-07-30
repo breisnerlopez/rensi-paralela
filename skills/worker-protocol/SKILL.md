@@ -5,7 +5,10 @@ argument-hint: "(el contexto viene en el prompt inicial: id, box, rama, subtarea
 ---
 
 Eres un **WORKER** de una orquestación `/paralela`. Tu prompt inicial trae: tu `id`, la ruta de tu
-buzón `box` (= `$ORCH/<id>`), tu rama `worktree-<id>` (ya estás en tu worktree), y tu **subtarea**.
+buzón `box` (= `$ORCH/<id>`), tu rama `worktree-<id>` (ya estás en tu worktree), tu **subtarea** y —
+si el orquestador corrió el scout— tu **BLUEPRINT (PRP, F1)**: archivos/símbolos exactos, el **contexto
+necesario declarado** (F4: es lo único que necesitas; no re-explores de más) y tu **criterio de
+aceptación** (F2). Respétalo: es tu contrato acotado, no un punto de partida a reinterpretar.
 Carga las primitivas del buzón:
 ```
 source "$(dirname "$box")/bin/orch-lib.sh"   # provee atomic_write y orch_wait
@@ -26,6 +29,16 @@ source "$(dirname "$box")/bin/orch-lib.sh"   # provee atomic_write y orch_wait
 
 ## Eficiencia de contexto (tokens) — obligatorio
 Tu output infla el contexto y el coste. Reglas:
+- **Narración conversacional: omítela; ejecuta directo.** Nadie lee tu chat en vivo — el orquestador
+  solo lee tus **archivos del buzón**, y el humano que te observa mira el resultado, no tu prosa. Salta
+  preámbulos ("Voy a revisar X…", "Perfecto, ahora…") y recapitulaciones; tu prosa conversacional se
+  re-procesa en CADA turno tuyo = coste puro. **Guardarraíl innegociable — esto NO reduce ni comprime:**
+  (a) tu **razonamiento interno** (piensa lo que necesites); (b) las **llamadas a herramientas** ni los
+  **latidos `status.json`** (el orquestador infiere de ellos si estás vivo/avanzando — nunca los saltes
+  "por brevedad"); (c) el **texto de tus `ask-<seq>.json`** (opciones + contexto completos); (d) el
+  `summary` y el `gate_veredicto`/`gate_refutacion` de tu **`done.json`** — el orquestador los lee como
+  **CONTENIDO COMPLETO** para su QA final. Regla: **conciso en la charla, COMPLETO en los canales que el
+  orquestador consume.** Comprimir (b)/(c)/(d) para "ser breve" es el fallo a evitar, no la meta.
 - **Explorar/leer/buscar: usa las tools nativas `Read`, `Grep`, `Glob`** en vez de `cat`/`grep`/`find`
   en Bash. Son más compactas y paginables, y no dependen de que tu entorno tenga un compresor de comandos.
 - **Si igual usas Bash**, no antepongas `cd` (ya estás en tu worktree); si encadenas, usa `cmd1 && cmd2`
@@ -65,10 +78,24 @@ llevar comillas/saltos sin romper el parser del orquestador. Formato: `emit_json
      refute. **NUNCA lances auditor** (el auditor de alto-riesgo es central, del orquestador).
    - Esto es un PRIMER-PASE: mejora tu diff y paraleliza la revisión. **NO sustituye** la revisión
      central independiente del orquestador (que leerá el diff integrado completo igual).
+4b. **Acceptance (F2) — la validación es la autoridad, no tu palabra.** Tu PRP trae un `## Criterio de
+   aceptación` que **autoró el orquestador** (no tú): un `acceptance.sh` (1ª línea `PASS`/`FAIL`, exit
+   0=PASS/2=FAIL) o la marca `acceptance: no-acceptance`. **Córrelo como smoke-test antes de cerrar** —
+   debe dar PASS; arregla tu TRABAJO (no el test) hasta que pase. **NO reescribas ni "ajustes" el
+   acceptance para que pase, ni shipees tu propia versión**: el orquestador **re-corre su copia canónica**
+   (orquestador-side, fuera de tu worktree) sobre tu rama y no confía en el `done.json` — tocar el test es
+   inútil y se detecta. Si tu PRP dice `no-acceptance`, no hay smoke-test: tu rama cae al gate CERRAR
+   central.
 5. **Cierre.** Cuando termines:
    - Asegura que **todo** está commiteado en tu rama.
    - Reporta el gate con su **CONTENIDO real** (no un booleano — el orquestador lo lee para juzgar):
      `emit_json "$box/done.json" branch "worktree-<id>" summary "<resumen>" files "<archivos>" gate_veredicto "<aprobado|refutado>" gate_refutacion "<qué refutó tu retador y cómo lo resolviste; 'sin hallazgos' si nada>" gate_resuelto "<si|no>"`
+   - **Handoff para trazabilidad (F3, opcional pero recomendado):** para subtareas no triviales, deja
+     además un handoff estructurado `context-package` (skill `context-package`; secciones Resumen,
+     Decisiones, Hallazgos, Riesgos, Pendientes, Para el siguiente agente, Referencias — ver
+     `done-schema.md`). El orquestador lo pasa por `handoff_complete.sh`, que **solo reporta** faltantes
+     (WARN) para el humano que monitorea — **nunca te reabre ni bloquea** por un handoff delgado. No
+     re-describas trabajo ya commiteado solo para silenciar el warn.
    - Termina. (El riesgo de alto-nivel lo determina el ORQUESTADOR con `diff-risk.sh`, no tú.)
 
 Si en cualquier momento no puedes continuar por una causa externa (falta input, bloqueo real),
