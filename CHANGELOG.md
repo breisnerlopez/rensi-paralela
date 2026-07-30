@@ -5,6 +5,19 @@ Todos los cambios notables de este proyecto se documentan en este archivo.
 El formato se basa en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/),
 y el proyecto adhiere a [Versionado Semántico](https://semver.org/lang/es/).
 
+## [Unreleased]
+
+### Cambiado (pasada de honestidad tras auditoría de utilidad)
+- Un gate adversarial retador→auditor sobre la utilidad del propio proyecto concluyó: **utilidad real
+  y diferenciada, nicho estrecho** (demostrada por uso de producción). Correcciones de claims en docs,
+  sin tocar el producto:
+  - **Encuadre de nicho** en README/GUIA/ARQUITECTURA/SKILL: paralela es para escritura paralela donde
+    `Task` nativo no basta (aislamiento-FS / durabilidad / diálogo — **al menos uno**); read-only y
+    subtareas triviales van a subagentes `Task`/`Explore`, no a paralela.
+  - **"Más rápido" acotado:** medido solo vs fork-in-process, **no vs `Task` nativo** (no medido).
+  - **F1/F4 marcadas ortogonales al paralelismo** (ganancia de estructura LEAN, no del mecanismo de workers).
+  - Documentado el **A/B pendiente** (paralela vs `Task` con partición) en `ROADMAP-Y-PLAN.md`.
+
 ## [0.2.0] - 2026-07-30
 
 `paralela+`: iteración enfocada en **precisión y auditabilidad** (NO en tokens).

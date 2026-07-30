@@ -13,18 +13,30 @@ te escala solo lo que de verdad requiere tu decisión, e integra todo en una ram
 
 ## 1. ¿Cuándo usar `/paralela` (y cuándo NO)?
 
-`/paralela` sirve para **una** cosa: repartir trabajo entre workers que corren **al mismo tiempo**, sin
-pisarse. Eso solo tiene sentido si la tarea se parte en subtareas **genuinamente independientes**.
+`/paralela` sirve para **una** cosa: repartir trabajo que **ESCRIBE** entre workers que corren **al mismo
+tiempo**, sin pisarse. Eso solo tiene sentido si la tarea se parte en subtareas **genuinamente
+independientes** que producen archivos.
 
-**Úsalo cuando** las subtareas:
+> **Antes de nada — ¿tu trabajo es read-only?** Si es **investigar / buscar / auditar / mapear / revisar**
+> (no escribe archivos), **`/paralela` NO es la herramienta**, aunque sea muy paralelizable. Eso se hace
+> mejor con **fan-out directo de subagentes `Task`/`Explore`** (sin worktrees, más ligero): solo pídeselo
+> al orquestador en lenguaje natural ("investiga A, B y C en paralelo y sintetiza"). `/paralela` es para
+> el caso en que varios workers **escriben** a la vez. No confundas "read-only paralelo" con "secuencial":
+> el read-only SÍ se paraleliza, pero por subagentes, no por worktrees.
 
-- Tocan **archivos distintos** (no hay solapamiento de escritura).
-- No dependen del resultado de otra para empezar (no hay orden obligatorio A→B→C).
-- Comparten a lo sumo contexto de **lectura** (una convención, un módulo base), no de escritura.
+**Úsalo cuando** el trabajo ESCRIBE, las subtareas no dependen unas de otras para empezar, y `Task`
+nativo se queda corto por **al menos uno** de estos requisitos duros:
 
-Ejemplo típico: "implementa los módulos `mod-billing`, `mod-user` y `mod-order`, cada uno en su
-paquete, todos siguiendo la misma convención del `_core`". Tres módulos, tres archivos, cero
-solapamiento → tres workers en paralelo.
+- **No particionable limpio:** varias subtareas editan **zonas solapadas del mismo repo** → necesitas
+  aislamiento-FS por worktree. *(Si tocan **archivos distintos**, `Task` particiona: no necesitas paralela.)*
+- **Durabilidad / observación en vivo:** los workers son **largos**; quieres que **sobrevivan** a una
+  caída/compactación del orquestador, o **verlos/intervenirlos** en vivo.
+- **Diálogo:** necesitas que un worker te **pregunte a mitad** (buzón ask/answer) o tomar el control de un pane.
+
+Ejemplo típico: un **refactor grande** de un monorepo confiable, con módulos que se **tocan entre sí**
+(solapamiento → aislamiento-FS) o lo bastante **largos** como para querer verlos en vivo. En cambio, tres
+módulos en **tres archivos distintos y triviales** (sin solapamiento, cortos, sin diálogo) → `Task` con
+partición es más ligero; ahí paralela sobra.
 
 **NO lo uses cuando** las subtareas son **secuencial-dependientes**: si B necesita lo que produce A, o
 dos subtareas editan el mismo archivo, los worktrees no te compran nada — solo te dan conflictos de

@@ -13,6 +13,25 @@ resuelve por gate lo que puede, escala al humano lo que debe, e integra** en una
 > promete menos tokens** — la medición muestra que ese efecto es ≈0/indetectable. Cada afirmación de este
 > repo está respaldada por medición con repeticiones, o marcada como no medida.
 
+## Cuándo usar `/paralela` (y cuándo NO)
+
+Es una herramienta de **nicho**, no un reemplazo general de subagentes. La mayoría del trabajo
+paralelizable **no la necesita**.
+
+- ✅ **Úsala** para trabajo que **ESCRIBE** donde `Task` nativo se queda corto por **al menos uno** de:
+  editan **zonas solapadas del mismo repo** (aislamiento-FS por worktree), workers **durables** (sobreviven
+  a la caída del orquestador), o **diálogo a workers vivos** (buzón ask/answer). Nicho típico: un refactor
+  grande de un monorepo confiable. Si son **archivos distintos, cortos y sin diálogo**, `Task` particiona y
+  no necesitas paralela.
+- ❌ **NO la uses** para trabajo **read-only** (investigar/buscar/auditar/mapear): eso es paralelizable por
+  **fan-out directo de subagentes `Task`/`Explore`** — más ligero, sin worktrees. Ni para subtareas
+  **secuencial-dependientes**.
+
+> **Honestidad del diferenciador:** la **capacidad** de paralela (aislamiento-FS + diálogo en vuelo +
+> procesos durables/observables) es real y está demostrada en **uso de producción**. Su **superioridad
+> cuantitativa** sobre `Task` nativo (¿más rápida? ¿menos overhead?) **NO está A/B-medida** — es un
+> experimento pendiente. Ver [`docs/ARQUITECTURA.md`](docs/ARQUITECTURA.md) §1.b.
+
 ## Quickstart
 
 ```bash
@@ -103,6 +122,14 @@ install.sh           # instalador
 ## Limitaciones honestas
 
 - **No promete menos tokens.** F1/F4 = precisión; el efecto en tokens es ≈0/indetectable (medido).
+- **F1/F4 son ortogonales al paralelismo.** La ganancia de precisión medida es de la estructura **PRP
+  LEAN**; no hay razón mecánica conocida para que un subagente `Task` nativo con el mismo PRP no la
+  obtuviera igual (no probado directamente). NO son evidencia de que los
+  workers-en-worktree superen a `Task` — el diferenciador de paralela es de **capacidad** (aislamiento-FS,
+  diálogo en vuelo, durabilidad), no de precisión.
+- **La superioridad cuantitativa vs `Task` nativo no está medida.** El E2E comparó PRP-LEAN vs dump (ambos
+  paralela), no paralela vs `Task`. La capacidad está demostrada en producción; el A/B cuantitativo (¿más
+  rápido/menos overhead?) es un experimento **pendiente**.
 - **El launcher y el skill `revisar` no vienen incluidos** (bring-your-own); sin ellos `/paralela` no
   corre de verdad.
 - **El path interactivo se validó con un smoke en vivo** (launcher + buzón + guard + autonomía del

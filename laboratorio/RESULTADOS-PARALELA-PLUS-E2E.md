@@ -8,6 +8,14 @@
 > **Honestidad (§5.3):** se ESPERABA que tokens saliera inconcluso; el éxito se juzga por **precisión** +
 > no-regresión de espíritu. Tokens = banda sin conclusión.
 
+> **Qué este E2E NO mide (importante):** ambos brazos (BASELINE dump y PARALELA+ LEAN) son **paralela**
+> (`claude -p` en worktrees). Este experimento aísla el efecto de **F1/F4 (PRP LEAN vs dump)** — una
+> disciplina de prompting **ortogonal al paralelismo**. **NO** compara paralela-orquestador vs subagentes
+> `Task` nativos con partición de archivos; ese A/B (que decidiría la superioridad *cuantitativa* de la
+> maquinaria de workers) queda **pendiente**. La ganancia de precisión aquí es atribuible a la estructura
+> LEAN, no al mecanismo de workers-en-worktree. La **capacidad** diferenciada de paralela (aislamiento-FS,
+> diálogo en vuelo, durabilidad) está demostrada por uso de producción, no por este E2E.
+
 ## PRIMARIO — Precisión / consistencia de adherencia (DoD #1)
 
 Scorer: `repo-sintetico/check.sh` (adherencia /6 + penalización −2 por anti-convención:
