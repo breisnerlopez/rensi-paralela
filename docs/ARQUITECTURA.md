@@ -184,21 +184,31 @@ contención total haría falta contenedor/usuario dedicado — fuera de alcance 
 
 ---
 
-## 5. Prerequisites del runtime (bring-your-own)
+## 5. Prerequisites del runtime (qué se bundlea y qué es externo)
 
-`rensi-paralela` es autocontenido en su lógica pero **no** incluye el runtime vivo:
+`rensi-paralela` bundlea su lógica **y** el gate adversarial completo; lo único externo es el runtime
+vivo (CLI + utilidades de sistema). `install.sh` coloca lo bundleado en tu `~/.claude/`:
 
-1. **`claude` CLI** (Claude Code) con acceso a API/red; los skills se instalan en `~/.claude/skills/`.
+1. **`claude` CLI** (Claude Code) con acceso a API/red — externo. `install.sh` instala los skills en
+   `~/.claude/skills/`.
 2. **Un launcher de sesiones en worktrees** (`<launcher>` en SKILL.md): dado `-w <id>`, crea
    worktree+rama, arranca un worker `claude` con permisos y reenvía los flags por-lanzamiento
-   (`--settings`, `--append-system-prompt`, `--model`). **El binario concreto NO se incluye** (contrato
-   bring-your-own). Sin él, `/paralela` no corre de verdad — es una limitación honesta declarada.
-3. **Un skill `revisar`** (o equivalente) para el gate CERRAR (retador + auditor read-only).
-4. **`python3`, `git`, `tmux`.**
+   (`--settings`, `--append-system-prompt`, `--model`). El repo **incluye un launcher de referencia**
+   (`launcher/claudea`) que `install.sh` instala en `~/.local/bin/claudea` **solo si no hay ninguno**
+   (respeta un `claudea` en el PATH, un `$PARALELA_LAUNCHER` o el archivo destino ya existente; nunca
+   sobreescribe el tuyo). Flags: `--no-launcher` para omitirlo, `--launcher-dest <ruta>` para el destino.
+   El launcher de referencia es **genérico** (sin usuario/sudo/bootstrap hardcodeados) → puede requerir
+   **adaptación al entorno**: esa adaptación es la limitación honesta, no su ausencia.
+3. **El gate CERRAR viene bundleado** (ya no es bring-your-own): `install.sh` instala el skill
+   `skills/revisar/`, los agentes `agents/{retador,auditor}.md` y las 12 lentes de `review/lenses/`
+   (`_base.md` + `dim/*` + `etapa/*`) en `~/.claude/`. Funciona out-of-the-box. Su **calidad** depende de
+   tener buenos lentes/agentes — que ahora se incluyen; puedes ajustarlos a tu criterio.
+4. **`python3`, `git`, `tmux`** — externo.
 
 **Limitaciones honestas** (regla del proyecto; ver [`INVESTIGACION.md`](INVESTIGACION.md) y el README):
 el path interactivo/observable (launcher + buzón + guard + autonomía del worker) se validó con un **smoke
 en vivo** (worktree+tmux, `status`→`done`, push bloqueado por el guard), pero la orquestación paralela+
 **completa** de N workers no se corrió como una sola sesión viva (meta-riesgo: no correr paralela sobre sí
-misma); el `laboratorio/` requiere el runtime vivo para reproducir números; la regla anti-narración de
-workers es pulido **no-medido** (sin baseline), no un ahorro vendible.
+misma); el launcher incluido es **de referencia y genérico** (puede requerir adaptación a tu entorno, no
+garantiza correr tal cual); el `laboratorio/` requiere el runtime vivo para reproducir números; la regla
+anti-narración de workers es pulido **no-medido** (sin baseline), no un ahorro vendible.
