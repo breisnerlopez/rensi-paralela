@@ -36,8 +36,14 @@ refutó** ([`INVESTIGACION.md`](INVESTIGACION.md) §2):
   práctico: el costo lo domina el **trabajo del agente** (multi-turno), no la entrega de contexto.
 
 Conclusión de diseño: el modelo **cold + worktrees separados + observable** es correcto **por
-observabilidad e independencia**, no por tokens. Es además más rápido (workers reales en paralelo) y su
-única palanca de tokens robusta —acotar el trabajo— es ortogonal al mecanismo de entrega de contexto.
+observabilidad e independencia**, no por tokens. Su única palanca de tokens robusta —acotar el trabajo—
+es ortogonal al mecanismo de entrega de contexto.
+
+> **Honestidad sobre "más rápido":** la única medición wall-clock del repo (`laboratorio/RESULTADOS.md`,
+> ~21s vs ~62s) es **cold-proc vs fork-in-process**, NO paralela-orquestador vs subagentes `Task` nativos
+> (que también corren en paralelo). Frente a `Task` nativo, la velocidad **no está medida** — no la
+> presentamos como ventaja establecida. La ventaja establecida de los workers en worktrees es de
+> **capacidad** (aislamiento-FS + diálogo en vuelo + procesos durables/observables), no de velocidad.
 
 ### Por qué observable
 
@@ -48,6 +54,39 @@ aquí el orquestador **descompone, supervisa, auto-resuelve por gate, escala al 
 worker es una sesión attachable: el humano puede tomar el control de un pane en cualquier momento (base
 del guardarraíl H5). Esa observabilidad es un requisito de diseño, no un extra — es lo que permite el
 handshake de preguntas y el escalamiento al usuario.
+
+---
+
+## 1.b Alcance real: un nicho, no un reemplazo general de subagentes
+
+**Sé honesto sobre cuándo paralela gana y cuándo NO** (esto pasó por un gate adversarial retador→auditor
+sobre la utilidad del propio proyecto). La mayoría del trabajo paralelizable **no necesita paralela**: la
+regla por defecto (también en `~/.claude/CLAUDE.md`) es **subagentes nativos** (`Task`/`Explore`) —
+worktrees solo si varios **escriben** en paralelo; en read-only o secuencial, worktree es desperdicio.
+
+**Nicho donde paralela gana** — trabajo que **ESCRIBE** donde `Task` nativo se queda corto por **AL MENOS
+UNO** de estos requisitos duros (basta uno; no hace falta la conjunción):
+1. **Escrituras no particionables limpiamente:** varias subtareas editan **zonas solapadas del mismo
+   repo** → necesitas **aislamiento-FS por worktree** (los subagentes `Task` comparten una sola
+   working-copy y colisionarían). Si escriben **archivos distintos**, esto NO aplica: `Task` particiona.
+2. **Workers durables:** procesos que **sobrevivan** al orquestador (compactación/caída) — los subagentes
+   `Task` mueren con el turno del padre.
+3. **Diálogo/observabilidad con workers vivos:** buzón ask/answer, tomar el control de un pane en vivo.
+
+Si las subtareas escriben **archivos distintos, son cortas y sin diálogo** (ej. clásico: 3 módulos en 3
+archivos), subagentes `Task` con partición **bastan** — no uses paralela. El caso de producción demostrado
+(abajo) cumplía los tres a la vez, pero **cualquiera** de los tres justifica la maquinaria. (El rango
+"pocas subtareas" es una regla de dedo, no una cifra medida.)
+
+**Honestidad del diferenciador (medido vs asertado):**
+- **Capacidad real, demostrada:** el aislamiento-FS por worktree y el diálogo-en-vuelo son cosas que
+  `Task` nativo **no** puede dar, y se han ejercitado en **uso de producción real** (un refactor
+  concurrente de un monorepo, particionado por módulo en worktrees separados, con buzón ask/answer vivo,
+  observabilidad tmux, integrado y **pusheado a `main` tras el gate**). No es una feature buscando uso.
+- **NO medido:** la ventaja **cuantitativa** de paralela frente a subagentes `Task` con partición (¿es más
+  rápido? ¿menos overhead?) **no se ha A/B-medido**. La utilidad (capacidad) está demostrada; la
+  *superioridad cuantitativa* sobre `Task` es un experimento pendiente (ver `ROADMAP-Y-PLAN.md`). No la
+  vendemos como establecida.
 
 ---
 
@@ -75,6 +114,15 @@ salta.
 
 **Evidencia E2E** (`laboratorio/RESULTADOS-PARALELA-PLUS-E2E.md`): precisión PARALELA+ 9/9 a 6/6 con
 stdev 0, vs. baseline mean 5.56 (4/9 sub-6). El PRP LEAN adhiere más consistente que el dump ad-hoc.
+
+> **Qué mide (y qué NO) ese E2E — honestidad:** compara **PRP-LEAN vs dump ad-hoc**, y **ambos brazos son
+> paralela** (`claude -p` en worktrees). La ganancia medida es de la **estructura LEAN**, no del mecanismo
+> de paralelismo — es **ortogonal**: no hay razón mecánica conocida para que un subagente `Task` nativo con
+> el mismo PRP LEAN no obtuviera la misma mejora de adherencia (el PRP es contenido de prompt, no depende
+> del worktree) — **no se ha probado directamente**. Por tanto F1/F4 **no son evidencia de que los
+> workers-en-worktree superen a `Task`
+> nativo**; son una disciplina de prompting que paralela adopta. El diferenciador real de paralela es de
+> **capacidad** (ver "Alcance real"), no de precisión.
 
 ### F2 · Validación como autoridad — por CONFIABILIDAD del "hecho"
 

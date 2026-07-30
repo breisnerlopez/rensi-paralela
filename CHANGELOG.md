@@ -21,9 +21,16 @@ y el proyecto adhiere a [Versionado Semántico](https://semver.org/lang/es/).
 
 ### Cambiado
 - `install.sh`: instala también gate (skills/agentes/lentes) y launcher; `--dest` deriva
-  la raíz de config para agentes y lentes.
+  la raíz de config para agentes y lentes. Corrige una regresión: correr sin `--dest` fallaba.
 - Docs (README, guía, arquitectura, troubleshooting) reencuadran gate y launcher como
   **incluidos** (ya no bring-your-own).
+- **Pasada de honestidad tras auditoría de utilidad:** un gate retador→auditor sobre la utilidad
+  del propio proyecto concluyó **utilidad real y diferenciada, nicho estrecho** (demostrada por uso
+  de producción). Correcciones de claims en docs, sin tocar el producto: **encuadre de nicho**
+  (paralela = escritura paralela donde `Task` no basta por aislamiento-FS/durabilidad/diálogo —
+  **al menos uno**; read-only y subtareas triviales → subagentes `Task`/`Explore`); **"más rápido"
+  acotado** (no medido vs `Task`); **F1/F4 marcadas ortogonales al paralelismo**; **A/B pendiente**
+  documentado en `ROADMAP-Y-PLAN.md`.
 
 ## [0.2.0] - 2026-07-30
 

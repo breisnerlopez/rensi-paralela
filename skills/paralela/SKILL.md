@@ -1,6 +1,6 @@
 ---
 name: paralela
-description: Orquesta trabajo en paralelo lanzando N sub-sesiones Claude (workers), cada una en su propio git worktree y observable en móvil/web (remote-control), mientras la sesión principal supervisa, auto-resuelve por gate adversarial las preguntas que pueda, escala al usuario solo lo que de verdad lo necesita, e integra todo en una sola rama con gate CERRAR + tests. Úsalo cuando el usuario pida paralelizar una tarea descomponible en subtareas genuinamente independientes.
+description: Orquesta trabajo en paralelo lanzando N sub-sesiones Claude (workers), cada una en su propio git worktree y observable en móvil/web (remote-control), mientras la sesión principal supervisa, auto-resuelve por gate adversarial las preguntas que pueda, escala al usuario solo lo que de verdad lo necesita, e integra todo en una sola rama con gate CERRAR + tests. Úsalo para trabajo que ESCRIBE en paralelo cuando los subagentes Task nativos NO bastan, por al menos uno de: (a) editan zonas solapadas del mismo repo y necesitan aislamiento-FS por worktree; (b) workers durables que sobrevivan al orquestador; (c) diálogo con workers vivos. Si escriben archivos distintos, son cortas y sin diálogo, Task particiona y NO necesitas paralela. Para trabajo READ-ONLY (investigar/buscar/auditar/mapear) tampoco: fan-out directo de subagentes Task/Explore y sintetiza. Ni para subtareas secuencial-dependientes.
 argument-hint: "<descripción de la tarea a paralelizar>"
 ---
 
@@ -18,9 +18,20 @@ aplicarás (idea ligero ya hecho al definir la tarea; **CONSTRUIR** en cada work
 del worker vía su propio ciclo; **CERRAR** en la integración). El usuario puede objetar.
 
 ## 2. Descompón (tu decisión) y pide aprobación
-Parte la tarea en subtareas **genuinamente independientes** — sin solapamiento de archivos; worktree
-solo se justifica porque escriben en paralelo. Si no son realmente independientes, dilo y propón
-secuencial (no fuerces worktrees). Asigna a cada subtarea un `<id>` **único**, saneado a `[a-z0-9_-]`
+**Primero clasifica el trabajo — hay TRES rutas, no dos:**
+- **Read-only** (investigar/buscar/auditar/mapear/revisar — no escribe archivos): **NO es caso de
+  paralela.** Es paralelizable, pero por **fan-out directo de subagentes `Task`/`Explore`** (sin
+  worktrees, sin launcher, sin buzón) que tú sintetizas. No lo mandes a "secuencial" — es paralelo, solo
+  que sin la maquinaria de worktrees. Dilo y hazlo así (o continúa fuera de paralela).
+- **Escritura donde `Task` nativo NO basta** — por **al menos uno** de: (a) editan **zonas solapadas del
+  mismo repo** y necesitas aislamiento-FS (si son **archivos distintos**, `Task` particiona y NO necesitas
+  paralela); (b) workers **durables** que sobrevivan al orquestador; (c) **diálogo con workers vivos**
+  (buzón/attach). → **este es el caso de paralela**: sigue abajo.
+- **Secuencial-dependiente** (B necesita lo que produce A) → serial; los worktrees no compran nada.
+
+Para el caso de paralela: parte la tarea en subtareas **genuinamente independientes** — sin solapamiento
+de archivos; worktree solo se justifica porque escriben en paralelo. Si no son realmente independientes,
+dilo y propón secuencial (no fuerces worktrees). Asigna a cada subtarea un `<id>` **único**, saneado a `[a-z0-9_-]`
 y que **empiece por alfanumérico** (el launcher valida el nombre del worktree y rechaza espacios/símbolos;
 un id que empieza con `-` lo tomaría el launcher como flag). Explora el repo (delega a subagentes
 Explore) para trazar las costuras. **Presenta la partición al usuario y ESPERA aprobación** (es un

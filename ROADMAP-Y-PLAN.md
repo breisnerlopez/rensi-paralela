@@ -153,3 +153,14 @@ fuente única tras colapsar el staging `paralela-plus/`) + tejido en los dos SKI
 ### Pendiente (externo — requiere al usuario)
 Push/commit de la rama (nunca automático). E2E interactivo/observable en vivo si se quiere cerrar el
 caveat de #4.
+
+### Auditoría de utilidad (gate retador→auditor sobre el propio proyecto) y A/B pendiente
+Un gate adversarial sobre "¿paralela tiene utilidad real?" concluyó: **utilidad real y diferenciada,
+nicho estrecho** — demostrada por **uso de producción** (un monorepo real: refactor concurrente
+particionado por módulo en worktrees, buzón ask/answer vivo, integrado y pusheado tras el gate). La
+**capacidad** diferenciada (aislamiento-FS + diálogo en vuelo + durabilidad) que `Task` nativo no da está
+confirmada. Correcciones de honestidad aplicadas en docs (velocidad acotada; F1/F4 marcadas ortogonales
+al paralelismo; alcance encuadrado como nicho). **Experimento A/B pendiente** (para cerrar el claim
+*cuantitativo*, no la utilidad): **paralela (worktree+buzón) vs subagentes `Task` nativos con partición**
+sobre un refactor concurrente real — mide overhead/velocidad neta. No es para probar el aislamiento
+(la colisión de working-copy es casi a priori) sino para cuantificar el costo del mecanismo.
