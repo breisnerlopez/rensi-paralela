@@ -40,8 +40,9 @@ git clone https://github.com/breisnerlopez/rensi-paralela.git && cd rensi-parale
 # en Claude Code, sobre un REPO CONFIABLE:
 /paralela "implementa X, Y, Z (subtareas independientes)"
 ```
-Necesitas además un **launcher de worktrees** y un skill **`revisar`** (bring-your-own — ver
-[Prerequisites](#prerequisites)). El `install.sh` avisa si faltan.
+`install.sh` incluye e instala el **gate** (`revisar` + agentes + lentes) y un **launcher de referencia**
+(solo si no tienes ya uno). Lo único externo es el CLI `claude` + `python3`/`git`/`tmux` (ver
+[Prerequisites](#prerequisites)).
 
 ## Las 4 features de `paralela+`
 
@@ -75,28 +76,34 @@ realmente funcionan y cuáles son espejismos (detalle en [`docs/INVESTIGACION.md
 
 ## Prerequisites
 
-`rensi-paralela` define **contratos** (buzón, protocolo de worker, guardarraíles, gate); el **runtime**
-que los ejecuta es dependencia de entorno y **no está incluido**. Necesitas:
+`rensi-paralela` incluye los skills, el **gate** (skill `revisar` + agentes `retador`/`auditor` + lentes)
+y un **launcher de referencia**; `install.sh` lo coloca todo. Lo único que aportas es el runtime base:
 
 1. **`claude` CLI (Claude Code)** con acceso a API/red. Los skills viven en [`skills/`](skills/) y se
    instalan con `./install.sh` en `~/.claude/skills/`.
-2. **Un launcher de sesiones en worktrees** (`<launcher> -w <id>`): crea worktree+rama, arranca un worker
-   `claude` con permisos apropiados (típicamente `--dangerously-skip-permissions`, solo sobre **repos
-   confiables**) y reenvía flags por-lanzamiento (`--settings`, `--append-system-prompt`, `--model`).
-   **Bring-your-own**: el repo especifica el contrato; el binario concreto no se incluye.
-3. **Un skill `revisar`** (o equivalente) para el gate CERRAR: corre un retador y, en alto riesgo, un
-   auditor read-only.
-4. **`python3`, `git`, `tmux`.**
+2. **`python3`, `git`, `tmux`.**
+
+Se **incluyen y se instalan** (con `install.sh`):
+- El **gate CERRAR**: skill [`revisar`](skills/revisar/), agentes [`retador`/`auditor`](agents/) y
+  [lentes](review/lenses/) → `~/.claude/{skills,agents,review/lenses}`.
+- Un **launcher de referencia** ([`launcher/claudea`](launcher/)) que cumple el contrato `<launcher> -w <id>`
+  (crea worktree+rama, arranca un worker `claude` observable con `--dangerously-skip-permissions` — solo
+  sobre **repos confiables** — y reenvía `--settings`/`--append-system-prompt`/`--model`). Genérico y
+  saneado; `install.sh` lo instala **solo si no tienes ya un launcher** (si tienes uno, lo respeta). Puedes
+  adaptarlo a tu entorno.
 
 ## Instalación
 
 ```bash
-./install.sh                 # instala a ~/.claude/skills/ (respalda lo existente a .bak-<ts>)
+./install.sh                 # instala skills + gate (respalda lo previo a .bak-<ts>) + launcher si falta
 ./install.sh --dry-run       # muestra qué haría, sin tocar nada
-./install.sh --dest /ruta    # destino alternativo
+./install.sh --dest /ruta    # destino alternativo de skills
+./install.sh --no-launcher   # no instala el launcher de referencia
 ```
-Copia los skills `paralela`, `worker-protocol`, `context-package`, aplica permisos de ejecución, verifica
-prerequisites (avisa de los bring-your-own) y corre los tests unitarios desde el destino.
+Instala los skills (`paralela`, `worker-protocol`, `context-package`, `revisar`), los **agentes del gate**
+(`retador`, `auditor`) y las **lentes** en `~/.claude/{skills,agents,review/lenses}`, aplica permisos de
+ejecución, y corre los tests unitarios desde el destino como post-check. El **launcher de referencia** se
+instala en `~/.local/bin/claudea` **solo si no tienes ya uno** (si existe, lo respeta).
 
 ## Uso y documentación
 
@@ -114,6 +121,10 @@ skills/
                      # handoff_complete, orch-lib, diff-risk, worker-guard) + plantillas + tests/
   worker-protocol/   # protocolo del WORKER
   context-package/   # handoff estructurado (schema + validador)
+  revisar/           # skill del gate adversarial (retador → auditor)
+agents/              # agentes del gate: retador.md, auditor.md   -> ~/.claude/agents
+review/lenses/       # lentes del gate (_base + dim/* + etapa/*)  -> ~/.claude/review/lenses
+launcher/            # launcher de referencia (claudea) + su README
 docs/                # guía, referencia, arquitectura, troubleshooting, investigación
 laboratorio/         # experimentos reproducibles + resultados (sobre un repo sintético)
 install.sh           # instalador
@@ -124,14 +135,14 @@ install.sh           # instalador
 - **No promete menos tokens.** F1/F4 = precisión; el efecto en tokens es ≈0/indetectable (medido).
 - **F1/F4 son ortogonales al paralelismo.** La ganancia de precisión medida es de la estructura **PRP
   LEAN**; no hay razón mecánica conocida para que un subagente `Task` nativo con el mismo PRP no la
-  obtuviera igual (no probado directamente). NO son evidencia de que los
-  workers-en-worktree superen a `Task` — el diferenciador de paralela es de **capacidad** (aislamiento-FS,
-  diálogo en vuelo, durabilidad), no de precisión.
+  obtuviera igual (no probado directamente). NO son evidencia de que los workers-en-worktree superen a
+  `Task` — el diferenciador de paralela es de **capacidad** (aislamiento-FS, diálogo en vuelo,
+  durabilidad), no de precisión.
 - **La superioridad cuantitativa vs `Task` nativo no está medida.** El E2E comparó PRP-LEAN vs dump (ambos
   paralela), no paralela vs `Task`. La capacidad está demostrada en producción; el A/B cuantitativo (¿más
   rápido/menos overhead?) es un experimento **pendiente**.
-- **El launcher y el skill `revisar` no vienen incluidos** (bring-your-own); sin ellos `/paralela` no
-  corre de verdad.
+- **El launcher de referencia es genérico** (sin datos personales); puede requerir **adaptación a tu
+  entorno** (permisos elevados, sandbox, etc.). El gate (`revisar` + agentes + lentes) sí viene completo.
 - **El path interactivo se validó con un smoke en vivo** (launcher + buzón + guard + autonomía del
   worker), pero la orquestación **completa** de N workers no se corrió como una sola sesión viva.
 - La **regla anti-narración** de los workers es pulido **no medido** (sin baseline); no es un ahorro vendible.

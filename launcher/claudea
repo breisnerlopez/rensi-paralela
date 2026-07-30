@@ -1,0 +1,219 @@
+#!/bin/bash
+set -euo pipefail
+
+# ─────────────────────────────────────────────────────────────────────────────
+# claudea — LAUNCHER DE REFERENCIA para /paralela (bring-your-own, adáptalo).
+#
+# Cumple el contrato que `skills/paralela/SKILL.md` espera de "el launcher": dado
+#   claudea -w <id> [--model <m>] [--settings <f>] [--append-system-prompt <p>] "<prompt>"
+# crea un git worktree con su rama, arranca ahí un worker `claude` observable
+# (tmux + remote-control) con permisos apropiados, y reenvía los flags por-lanzamiento.
+#
+# Es una REFERENCIA genérica: sin usuario/sudo/bootstrap hardcodeados. Ajústalo a tu
+# entorno (p.ej. cómo obtienes permisos elevados, o si no usas tmux). El binario
+# concreto NO es parte del contrato — solo su comportamiento.
+#
+# Requiere: `claude` (Claude Code) en PATH, `git`, `tmux`, `python3`.
+# Modo proveedor alternativo (-b): opcional, requiere `yq`+`jq` y un ~/.claude/providers.yaml.
+# ─────────────────────────────────────────────────────────────────────────────
+
+WORKTREE_NAME=""
+PROVIDER=""
+USER_SET_MODEL=""
+PROVIDER_SETTINGS_ARG=()   # --settings del proveedor; se emite AL FINAL (env es last-wins)
+REMAINING_ARGS=()
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        -w)
+            # No consumir un flag siguiente como nombre (p.ej. `claudea -w --tmux`).
+            if [[ $# -gt 1 && "$2" != -* ]]; then
+                WORKTREE_NAME="$2"; shift 2
+            else
+                WORKTREE_NAME="worktree"; shift
+            fi
+            ;;
+        -w=*)
+            WORKTREE_NAME="${1#-w=}"; shift ;;
+        -b|--provider|--backend)
+            # Selector de backend de IA alternativo. Exige valor explícito (nada de default silencioso).
+            if [[ $# -gt 1 && "$2" != -* ]]; then
+                PROVIDER="$2"; shift 2
+            else
+                echo "claudea: $1 requiere un valor (nombre de proveedor)" >&2; exit 1
+            fi
+            ;;
+        -b=*|--provider=*|--backend=*)
+            PROVIDER="${1#*=}"; shift ;;
+        --model|--model=*)
+            # El usuario fijó el modelo: detectarlo (para NO inyectar --model en modo proveedor)
+            # y reenviarlo intacto. El valor separado cae al caso *) en la siguiente vuelta.
+            USER_SET_MODEL=1; REMAINING_ARGS+=("$1"); shift ;;
+        *)
+            REMAINING_ARGS+=("$1"); shift ;;
+    esac
+done
+
+SESSION_NAME="$(basename "$PWD")"
+CLAUDEEXTRA=()
+if [[ -n "$WORKTREE_NAME" ]]; then
+    SESSION_NAME="${SESSION_NAME}-${WORKTREE_NAME}"
+    CLAUDEEXTRA+=(--worktree "$WORKTREE_NAME" --tmux)
+fi
+
+# Pre-confiar carpetas en ~/.claude.json para saltar el diálogo de confianza de Claude
+# Code (bloquea el remote-control en tmux headless). Se siembra $PWD y, en modo worktree,
+# la ruta FINAL del worktree (<repo>/.claude/worktrees/<name>). Idempotente, atómico, fail-safe.
+SEED_PATHS=("$PWD")
+if [[ -n "$WORKTREE_NAME" ]]; then
+    REPO_ROOT="$(git -C "$PWD" rev-parse --show-toplevel 2>/dev/null || true)"
+    [[ -n "$REPO_ROOT" ]] && SEED_PATHS+=("$REPO_ROOT/.claude/worktrees/$WORKTREE_NAME")
+fi
+python3 - "${SEED_PATHS[@]}" <<'PY' || true
+import json, os, sys, tempfile, fcntl
+cfg = os.path.expanduser("~/.claude.json")
+# Lock exclusivo: N `claudea -w` concurrentes (caso de uso de /paralela) harían RMW
+# pisándose (lost update) y perderían entradas de trust -> el worker víctima cuelga en
+# el diálogo de confianza. flock serializa el read-modify-write completo.
+try:
+    _lf = open(cfg + ".seedlock", "w"); fcntl.flock(_lf, fcntl.LOCK_EX)
+except Exception:
+    pass
+try:
+    with open(cfg) as f:
+        d = json.load(f)
+except FileNotFoundError:
+    d = {}
+except Exception:
+    sys.exit(0)  # archivo presente pero no parseable: NO sobreescribir (destruiría estado)
+changed = False
+for raw in sys.argv[1:]:
+    path = os.path.realpath(raw)
+    entry = d.setdefault("projects", {}).setdefault(path, {})
+    if entry.get("hasTrustDialogAccepted") is not True:
+        entry["hasTrustDialogAccepted"] = True
+        changed = True
+if changed:
+    fd, tmp = tempfile.mkstemp(dir=os.path.dirname(cfg), prefix=".claude.json.")
+    try:
+        with os.fdopen(fd, "w") as f:
+            json.dump(d, f, indent=2)
+        os.replace(tmp, cfg)
+    except Exception:
+        try: os.unlink(tmp)
+        except OSError: pass
+PY
+
+# PATH: garantiza que `claude` (y cualquier hook) resuelvan en un shell no-interactivo
+# (que NO sourcea ~/.bashrc).
+export PATH="$HOME/.local/bin:$HOME/bin:$PATH"
+
+# Claude Code bloquea --dangerously-skip-permissions cuando corre como root; IS_SANDBOX=1
+# lo desbloquea (escape hatch para entornos sandbox/contenedor). Solo si el usuario es root.
+if [[ "$(id -u)" -eq 0 ]]; then
+    export IS_SANDBOX=1
+fi
+
+# --- Modo proveedor alternativo (-b/--provider/--backend) — OPCIONAL ----------
+# Enruta a un backend compatible-Anthropic (p.ej. otro proveedor de modelos) exportando
+# las env vars que Claude Code respeta, de forma TRANSPARENTE: skills, agentes y --model
+# siguen pidiendo los alias opus/sonnet/haiku, que se remapean al modelo del proveedor.
+# Sin -b, nada de esto corre. Falla-cerrado: cualquier error aborta (NUNCA cae a Claude
+# nativo, para no gastar la cuota por accidente). Config bring-your-own en providers.yaml.
+if [[ -n "$PROVIDER" ]]; then
+    PROVIDERS_YAML="$HOME/.claude/providers.yaml"
+    PROVIDERS_ENV="$HOME/.claude/providers.env"
+    die() { echo "claudea: proveedor '$PROVIDER': $1" >&2; exit 1; }
+
+    # El nombre se interpola en expresiones yq; restringirlo a un token simple evita inyección.
+    [[ "$PROVIDER" =~ ^[A-Za-z0-9_-]+$ ]] || die "nombre de proveedor inválido (solo [A-Za-z0-9_-])"
+
+    command -v yq >/dev/null 2>&1 || die "yq no encontrado (necesario para modo proveedor)"
+    [[ -f "$PROVIDERS_YAML" ]] || die "falta $PROVIDERS_YAML"
+    [[ "$(yq eval ".providers | has(\"$PROVIDER\")" "$PROVIDERS_YAML" 2>/dev/null)" == "true" ]] \
+        || die "desconocido (no está en $PROVIDERS_YAML)"
+
+    req() {
+        local v; v="$(yq eval ".providers.\"$PROVIDER\".$1" "$PROVIDERS_YAML" 2>/dev/null)" \
+            || die "yq no pudo leer '$1'"
+        [[ -n "$v" && "$v" != "null" ]] || die "campo requerido ausente/vacío: $1"
+        printf '%s' "$v"
+    }
+    BASE_URL="$(req base_url)"
+    API_KEY_ENV="$(req api_key_env)"
+    M_OPUS="$(req models.opus)"
+    M_SONNET="$(req models.sonnet)"
+    M_HAIKU="$(req models.haiku)"
+    AUTH_STYLE="$(yq eval ".providers.\"$PROVIDER\".auth_style // \"bearer\"" "$PROVIDERS_YAML" 2>/dev/null)"
+
+    [[ "$BASE_URL" =~ ^https?:// ]] || die "base_url inválido (requiere http(s)://): $BASE_URL"
+    [[ "$API_KEY_ENV" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || die "api_key_env no es identificador válido: '$API_KEY_ENV'"
+    [[ "$AUTH_STYLE" == "bearer" || "$AUTH_STYLE" == "apikey" ]] || die "auth_style debe ser bearer|apikey: $AUTH_STYLE"
+
+    # Resolver la API key SIN volcar todo providers.env al entorno de claude: en subshell
+    # se sourcea y se emite SOLO la var pedida (con múltiples proveedores, no se filtran
+    # las keys de unos a la sesión de otro bajo --dangerously-skip-permissions).
+    if [[ -n "${!API_KEY_ENV:-}" ]]; then
+        API_KEY="${!API_KEY_ENV}"
+    elif [[ -f "$PROVIDERS_ENV" ]]; then
+        perms="$(stat -c '%a' "$PROVIDERS_ENV" 2>/dev/null || echo '')"
+        [[ "$perms" == "600" || "$perms" == "400" ]] || die "$PROVIDERS_ENV debe ser chmod 600 (actual: ${perms:-?})"
+        API_KEY="$(set +e; set -a; . "$PROVIDERS_ENV" >/dev/null 2>&1; printf '%s' "${!API_KEY_ENV:-}")" \
+            || die "no pude leer $PROVIDERS_ENV"
+    else
+        API_KEY=""
+    fi
+    [[ -n "$API_KEY" ]] || die "define \$$API_KEY_ENV en $PROVIDERS_ENV (o expórtala); sin fallback a Claude nativo"
+
+    # ENVKV se EXPORTA (exec directo) Y se escribe a un --settings con bloque `env`
+    # (imprescindible con `claude --tmux`: el worker lo re-lanza el servidor tmux, que
+    # NO hereda el entorno exportado; el bloque `env` sí lo lee claude desde disco).
+    ENVKV=()
+    export ANTHROPIC_BASE_URL="$BASE_URL"; ENVKV+=("ANTHROPIC_BASE_URL=$BASE_URL")
+    if [[ "$AUTH_STYLE" == "bearer" ]]; then
+        export ANTHROPIC_AUTH_TOKEN="$API_KEY"; unset ANTHROPIC_API_KEY 2>/dev/null || true
+        ENVKV+=("ANTHROPIC_AUTH_TOKEN=$API_KEY")
+    else
+        export ANTHROPIC_API_KEY="$API_KEY"; unset ANTHROPIC_AUTH_TOKEN 2>/dev/null || true
+        ENVKV+=("ANTHROPIC_API_KEY=$API_KEY")
+    fi
+    export ANTHROPIC_DEFAULT_OPUS_MODEL="$M_OPUS";     ENVKV+=("ANTHROPIC_DEFAULT_OPUS_MODEL=$M_OPUS")
+    export ANTHROPIC_DEFAULT_SONNET_MODEL="$M_SONNET"; ENVKV+=("ANTHROPIC_DEFAULT_SONNET_MODEL=$M_SONNET")
+    export ANTHROPIC_DEFAULT_HAIKU_MODEL="$M_HAIKU";   ENVKV+=("ANTHROPIC_DEFAULT_HAIKU_MODEL=$M_HAIKU")
+
+    # Bloque env opcional del proveedor (quirks), exportado verbatim SIN eval.
+    while IFS= read -r _k; do
+        [[ -n "$_k" ]] || continue
+        [[ "$_k" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || die "env: clave inválida '$_k'"
+        _v="$(yq eval ".providers.\"$PROVIDER\".env.\"$_k\"" "$PROVIDERS_YAML" 2>/dev/null)"
+        [[ "$_v" == "null" ]] && _v=""
+        export "$_k=$_v"; ENVKV+=("$_k=$_v")
+    done < <(yq eval ".providers.\"$PROVIDER\".env // {} | keys | .[]" "$PROVIDERS_YAML" 2>/dev/null)
+
+    command -v jq >/dev/null 2>&1 || die "jq no encontrado (necesario para --settings de proveedor)"
+    PROV_SETTINGS="$HOME/.claude/.claudea-env-${PROVIDER}.json"
+    _sj="$(jq -n '{env: ($ARGS.positional | map((index("=")) as $i | {(.[:$i]): .[$i+1:]}) | add)}' --args "${ENVKV[@]}")" \
+        || die "no pude construir el settings de env"
+    _tmp="$(mktemp "$HOME/.claude/.claudea-env.XXXXXX" 2>/dev/null)" || die "no pude crear tmp de settings"
+    { printf '%s' "$_sj" > "$_tmp" && chmod 600 "$_tmp" && mv -f "$_tmp" "$PROV_SETTINGS"; } || { rm -f "$_tmp" 2>/dev/null; die "no pude escribir $PROV_SETTINGS"; }
+    # Va AL FINAL del exec: claude aplica el bloque `env` del ÚLTIMO --settings; el
+    # orquestador de /paralela pasa su propio --settings (guard) en REMAINING_ARGS, así
+    # que el nuestro debe ir DESPUÉS para que su env (el backend) gane.
+    PROVIDER_SETTINGS_ARG=(--settings "$PROV_SETTINGS")
+
+    # La sesión principal usa el model-ID literal de settings.json (no pasa por el remap
+    # de alias). Si el usuario no fijó --model, inyectar el alias 'opus' para forzar el remap.
+    if [[ -z "$USER_SET_MODEL" ]]; then
+        CLAUDEEXTRA+=(--model opus)
+    fi
+
+    echo "claudea: backend '$PROVIDER' -> $BASE_URL (modelos $M_OPUS/$M_SONNET/$M_HAIKU)." >&2
+fi
+
+# Resolver claude por PATH (portable: system-wide o por usuario). Fallback a la ruta clásica.
+CLAUDE_BIN="$(command -v claude || echo "$HOME/.local/bin/claude")"
+exec "$CLAUDE_BIN" \
+    --dangerously-skip-permissions \
+    --remote-control "$SESSION_NAME" \
+    "${CLAUDEEXTRA[@]}" \
+    "${REMAINING_ARGS[@]}" \
+    "${PROVIDER_SETTINGS_ARG[@]}"

@@ -68,18 +68,26 @@ Aun así, esto **no es un sandbox**. La regla es innegociable:
 
 ---
 
-## 3. Prerequisites (bring-your-own runtime)
+## 3. Prerequisites (qué trae `install.sh` y qué pones tú)
 
-`/paralela` orquesta un runtime que **no** viene empaquetado. Necesitas tener listo (ver README →
-Prerequisites):
+`install.sh` deja casi todo listo out-of-the-box. Lo único **externo** que necesitas es el runtime vivo
+(el CLI y las utilidades de sistema). Lo demás —el gate y un launcher de referencia— **viene bundleado**
+y lo coloca el instalador. Necesitas:
 
-1. El **CLI `claude`** (Claude Code) con acceso a red/API, y los skills instalados en `~/.claude/skills/`.
-2. Un **launcher de sesiones en worktrees** (bring-your-own). Dado `-w <id>`, crea el worktree + rama,
-   arranca ahí un worker `claude` con permisos, y reenvía los flags por lanzamiento (`--settings`,
-   `--append-system-prompt`, `--model`). **El binario concreto NO se incluye** — es un contrato: sin
-   launcher, `/paralela` no puede lanzar workers de verdad (ver
+1. El **CLI `claude`** (Claude Code) con acceso a red/API. `install.sh` instala los skills en
+   `~/.claude/skills/` (incluido `paralela` y `revisar`).
+2. Un **launcher de sesiones en worktrees**. `install.sh` **incluye uno de referencia**
+   ([`../launcher/claudea`](../launcher/claudea)) y lo instala en `~/.local/bin/claudea` **si aún no
+   tienes ninguno** (si ya hay un `claudea` en el PATH, un `$PARALELA_LAUNCHER` definido, o el archivo
+   destino existe, **lo respeta y no lo sobreescribe**). Dado `-w <id>` crea worktree + rama, arranca ahí
+   un worker `claude` con permisos y reenvía los flags por lanzamiento (`--settings`,
+   `--append-system-prompt`, `--model`). Es **genérico** (sin usuario/sudo/bootstrap hardcodeados), así
+   que puede que necesites **adaptarlo a tu entorno**; usa `--no-launcher` para omitir su instalación o
+   `--launcher-dest <ruta>` para elegir el destino (ver
    [`TROUBLESHOOTING.md`](TROUBLESHOOTING.md) → *launcher ausente*).
-3. Un skill **`revisar`** (o equivalente) para el gate CERRAR (retador + auditor read-only).
+3. El skill **`revisar`** para el gate CERRAR (retador + auditor read-only). **Viene bundleado**:
+   `install.sh` instala `skills/revisar/`, `agents/{retador,auditor}.md` y las 12 lentes de
+   `review/lenses/` en tu `~/.claude/`. El gate funciona sin que traigas nada aparte.
 4. `python3`, `git`, `tmux`.
 
 ---
@@ -237,7 +245,9 @@ precisión), integrados y revisados, con tu aprobación en los dos puntos que im
   worker usando el buzón `status`→`done`, guard bloqueando un `push` real), pero la orquestación
   **completa** de N workers en una sola corrida viva NO se ejecutó (meta-riesgo: no correr paralela sobre
   sí misma; y es pesado). Puede haber fricción real en el flujo N-worker que el diseño no capturó.
-- **El launcher NO viene incluido** (bring-your-own). Sin él, `/paralela` no lanza workers de verdad.
+- **El launcher incluido es de referencia y genérico.** `install.sh` lo instala si no tienes ninguno,
+  pero es un launcher genérico (sin usuario/sudo/bootstrap hardcodeados) que **puede requerir que lo
+  adaptes a tu entorno**. No garantiza funcionar tal cual en cualquier setup.
 - La regla anti-narración de los workers (que no escriban prosa conversacional) es **pulido no medido**:
   no hay baseline que lo cuantifique; no lo trates como ahorro garantizado.
 - Reproducir los números del `laboratorio/` requiere el runtime vivo (no es autocontenido).
